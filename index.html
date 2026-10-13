@@ -48,16 +48,26 @@
       .then(res => res.json())
       .then(data => {
         cardsData = data.map((item, index) => {
-          const no = String(item["No"] || (index + 1));
+          // Noを3桁ゼロ埋めにする (例: 1 -> "001", EX001 -> "EX001")
+          let rawNo = String(item["No"] || (index + 1)).trim();
+          let formattedNo = rawNo;
+          if (/^\d+$/.test(rawNo)) {
+            formattedNo = rawNo.padStart(3, '0');
+          }
+
           const bushoName = String(item["武将名"] || "").trim(); // 武将名 (例: 于禁)
           const yomi = String(item["ヨミ"] || "").trim(); // 読み仮名 (例: ウキン ブンソク)
+          
+          // 読みの最初の単語（苗字部分のカタカナ）を抽出 (例: "ウキン ブンソク" -> "ウキン")
+          const yomiFirstWord = yomi.split(" ")[0] || "";
 
-          // 画像ファイル名規則: <No>_<読み仮名>.jpg
-          // 例: 1_ウキン ブンソク.jpg や 001_ウキン ブンソク.jpg など
-          const imgFileName = `${no}_${yomi}.jpg`;
+          // 画像ファイル名の組み立て: <3桁No>_<苗字カタカナ>.jpg (例: 001_ウキン.jpg)
+          // もし画像名が異なる場合はここを柔軟に変更可能です
+          const imgFileName = `${formattedNo}_${yomiFirstWord}.jpg`;
 
           return {
-            id: no,
+            displayNo: rawNo,
+            noPrefix: formattedNo,
             rarity: item["レアリティ"] || "",
             bushoName: bushoName,
             yomi: yomi,
@@ -89,7 +99,7 @@
           <img src="images/card_back.jpg" id="img-${idx}" alt="カード裏面">
           <div class="card-name" id="name-${idx}">???</div>
           <div class="card-info">
-            No.${card.id} [${card.rarity}]<br>
+            No.${card.displayNo} [${card.rarity}]<br>
             武${card.power} / 知${card.int} / ｺｽﾄ${card.cost}<br>
             【${card.strategy}】
           </div>
@@ -113,10 +123,10 @@
         const val = inputEl.value.trim();
         if (!val) return;
 
-        // 【ルール】「武将名」が完全一致する未クリアのカードを探す（番号が小さいものを優先）
+        // 【ルール】武将名が完全一致する未クリアのカードを探す（番号が小さいものを優先）
         const targetCard = cardsData
           .filter(c => !c.isCleared && c.bushoName === val)
-          .sort((a, b) => parseInt(a.id) - parseInt(b.id))[0];
+          .sort((a, b) => parseInt(a.displayNo) - parseInt(b.displayNo))[0];
 
         const targetIndex = cardsData.indexOf(targetCard);
 
@@ -128,7 +138,8 @@
           const cardBox = document.getElementById(`card-${targetIndex}`);
           cardBox.classList.add("cleared");
           
-          // 指定された命名規則の画像をロード
+          // 正解したカードのNoプレフィックス（001等）を確認して画像を表示
+          console.log(`正解カード No: ${targetCard.noPrefix}, 画像ファイル名: ${targetCard.img}`);
           document.getElementById(`img-${targetIndex}`).src = `images/${targetCard.img}`;
           document.getElementById(`name-${targetIndex}`).innerText = targetCard.bushoName;
           document.getElementById("score").innerText = correctCount;
