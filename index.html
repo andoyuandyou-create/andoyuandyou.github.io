@@ -14,7 +14,7 @@
     input[type="text"] { font-size: 1.1rem; padding: 6px 12px; width: 85%; max-width: 280px; border-radius: 4px; border: 1px solid #666; background: #333; color: #fff; text-align: center; }
     .stats { font-size: 0.9rem; margin-top: 8px; color: #ccc; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; align-items: center; }
     
-    /* 残機アイコンのサイズ調整（必要に応じて調整してください） */
+    /* 残機アイコンのサイズ調整 */
     .shiki-icon { width: 16px; height: 16px; vertical-align: middle; margin: 0 1px; }
     
     /* PC表示：カード最大幅77pxに合わせ自動で最適列数で並ぶ */
@@ -243,6 +243,9 @@
         `;
         grid.appendChild(cardEl);
       });
+
+      // ★ここで初期状態の残機アイコンを描画するよう追加
+      changeLivesMode();
     }
 
     // 入力判定処理
