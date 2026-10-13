@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>三国志大戦1 言えるかな？</title>
+  <title>三国志大戦 言えるかな？</title>
   <style>
     body { font-family: sans-serif; background: #1a1a1a; color: #fff; text-align: center; margin: 0; padding: 10px; }
     .header { position: sticky; top: 0; background: #2a2a2a; padding: 10px; z-index: 100; border-bottom: 2px solid #444; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
@@ -14,7 +14,6 @@
     input[type="text"] { font-size: 1.1rem; padding: 6px 12px; width: 85%; max-width: 280px; border-radius: 4px; border: 1px solid #666; background: #333; color: #fff; text-align: center; }
     .stats { font-size: 0.9rem; margin-top: 8px; color: #ccc; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; align-items: center; }
     
-    /* 残機アイコンのサイズ調整 */
     .shiki-icon { width: 16px; height: 16px; vertical-align: middle; margin: 0 1px; }
     
     /* PC表示：カード最大幅77pxに合わせ自動で最適列数で並ぶ */
@@ -53,7 +52,7 @@
 <body id="body-layout">
 
   <div class="header">
-    <h1>三国志大戦1 言えるかな？</h1>
+    <h1>三国志大戦 言えるかな？</h1>
     <div class="disclaimer">
       本サイトは非公式二次創作です。本サイトで使用される画像およびデータ等著作物の権利及び一切の知的財産権は株式会社SEGA様に帰属します。
     </div>
@@ -61,9 +60,10 @@
     <!-- コントロール群 -->
     <div class="controls-row">
       <div class="control-group">
-        弾: <select id="version-select" onchange="changeVersion()">
-          <option value="1">第1弾</option>
-          <!-- 将来の拡張用: <option value="2">第2弾</option> -->
+        シリーズ: <select id="version-select" onchange="changeVersion()">
+          <option value="1">三国志大戦</option>
+          <option value="2">三国志大戦2</option>
+          <!-- 将来の拡張用: <option value="3">三国志大戦3</option> -->
         </select>
       </div>
 
@@ -99,8 +99,8 @@
 
   <script>
     let cardsData = [];
-    let initialLives = 12; // 選択された初期残機数 (12, 9, 6)
-    let lives = 12;        // 現在の残機数
+    let initialLives = 12;
+    let lives = 12;
     let missCount = 0;
     let isNoLivesMode = false;
     let correctCount = 0;
@@ -109,10 +109,18 @@
     let isTimerStarted = false;
     let isGameOver = false;
 
-    // バージョンに応じたJSONファイル読み込み
+    // 現在選択されているシリーズフォルダ名を取得するヘルパー
+    // 1 -> "sangokushitaisen1", 2 -> "sangokushitaisen2" など
+    function getCurrentFolder() {
+      const ver = document.getElementById("version-select").value;
+      return ver === "1" ? "sangokushitaisen1" : `sangokushitaisen${ver}`;
+    }
+
+    // シリーズに応じたJSONファイルおよびデータ読み込み
     function loadData() {
       const ver = document.getElementById("version-select").value;
       const jsonFile = ver === "1" ? "sangokushi_cards.json" : `sangokushi_cards_v${ver}.json`;
+      const folder = getCurrentFolder();
 
       fetch(jsonFile)
         .then(res => {
@@ -130,7 +138,9 @@
             const bushoName = String(item["武将名"] || "").trim();
             const yomi = String(item["ヨミ"] || "").trim();
             const yomiFirstWord = yomi.split(" ")[0] || "";
-            const imgFileName = `${formattedNo}_${yomiFirstWord}.jpg`;
+            
+            // 各シリーズご内のフォルダ構造を指定 (例: images/sangokushitaisen1/001_ウキン.jpg)
+            const imgFileName = `${folder}/${formattedNo}_${yomiFirstWord}.jpg`;
 
             return {
               displayNo: rawNo,
@@ -142,7 +152,7 @@
               int: item["知力"] || "",
               cost: item["武将コスト"] || "",
               strategy: item["計略名"] || "",
-              img: imgFileName,
+              imgPath: imgFileName,
               isCleared: false
             };
           });
@@ -151,7 +161,7 @@
         })
         .catch(err => {
           console.error(err);
-          document.getElementById("card-grid").innerHTML = "<h3 style='color:red; grid-column: 1 / -1; margin-top:20px;'>カードデータの読み込みに失敗しました。<br>sangokushi_cards.json の配置を確認してください。</h3>";
+          document.getElementById("card-grid").innerHTML = `<h3 style='color:red; grid-column: 1 / -1; margin-top:20px;'>カードデータの読み込みに失敗しました。<br>${jsonFile} の配置を確認してください。</h3>`;
         });
     }
 
@@ -210,7 +220,6 @@
       if (!isTimerStarted && !isGameOver) {
         isTimerStarted = true;
 
-        // ゲーム開始後は設定変更不可にする
         document.getElementById("version-select").disabled = true;
         document.getElementById("lives-select").disabled = true;
 
@@ -228,12 +237,15 @@
       grid.innerHTML = "";
       document.getElementById("total-count").innerText = cardsData.length;
 
+      const folder = getCurrentFolder();
+
       cardsData.forEach((card, idx) => {
         const cardEl = document.createElement("div");
         cardEl.className = "card";
         cardEl.id = `card-${idx}`;
+        // 裏面画像もシリーズごとのフォルダから読み込む (例: images/sangokushitaisen1/card_back.jpg)
         cardEl.innerHTML = `
-          <img src="images/card_back.jpg" id="img-${idx}" alt="カード裏面">
+          <img src="images/${folder}/card_back.jpg" id="img-${idx}" alt="カード裏面">
           <div class="card-name" id="name-${idx}">???</div>
           <div class="card-info">
             No.${card.displayNo} [${card.rarity}]<br>
@@ -244,18 +256,15 @@
         grid.appendChild(cardEl);
       });
 
-      // ★ここで初期状態の残機アイコンを描画するよう追加
       changeLivesMode();
     }
 
-    // 入力判定処理
     const inputEl = document.getElementById("name-input");
     inputEl.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !isGameOver && cardsData.length > 0) {
         const val = inputEl.value.trim();
         if (!val) return;
 
-        // 回答開始と同時にタイマー起動＆ドロップダウン固定
         startTimerIfNeeded();
 
         const targetCard = cardsData
@@ -265,14 +274,13 @@
         const targetIndex = cardsData.indexOf(targetCard);
 
         if (targetCard && targetIndex !== -1) {
-          // 【正解】
           targetCard.isCleared = true;
           correctCount++;
           
           const cardBox = document.getElementById(`card-${targetIndex}`);
           cardBox.classList.add("cleared");
           
-          document.getElementById(`img-${targetIndex}`).src = `images/${targetCard.img}`;
+          document.getElementById(`img-${targetIndex}`).src = `images/${targetCard.imgPath}`;
           document.getElementById(`name-${targetIndex}`).innerText = targetCard.bushoName;
           document.getElementById("score").innerText = correctCount;
           inputEl.value = "";
@@ -281,7 +289,6 @@
             endGame(true);
           }
         } else {
-          // 【お手付き・ミス】
           inputEl.value = "";
           document.body.classList.add("wrong-flash");
           setTimeout(() => document.body.classList.remove("wrong-flash"), 300);
@@ -304,29 +311,27 @@
     function updateLivesDisplay() {
       const container = document.getElementById("lives-icons-container");
       container.innerHTML = "";
+      const folder = getCurrentFolder();
 
-      // 1. 残りの残機（shiki_active.gif）を現在の残機数分配置
       for (let i = 0; i < lives; i++) {
         const img = document.createElement("img");
-        img.src = "images/shiki_active.gif";
+        img.src = `images/${folder}/shiki_active.gif`;
         img.className = "shiki-icon";
         container.appendChild(img);
       }
 
-      // 2. 失った残機（shiki_deactive.gif）をミスした回数分配置
       const deactiveCount = initialLives - lives;
       for (let i = 0; i < deactiveCount; i++) {
         const img = document.createElement("img");
-        img.src = "images/shiki_deactive.gif";
+        img.src = `images/${folder}/shiki_deactive.gif`;
         img.className = "shiki-icon";
         container.appendChild(img);
       }
 
-      // 3. 基準12から減らした分（shiki_out.gif）を配置
       const outCount = 12 - initialLives;
       for (let i = 0; i < outCount; i++) {
         const img = document.createElement("img");
-        img.src = "images/shiki_out.gif";
+        img.src = `images/${folder}/shiki_out.gif`;
         img.className = "shiki-icon";
         container.appendChild(img);
       }
@@ -337,37 +342,38 @@
       if (timerInterval) clearInterval(timerInterval);
       inputEl.disabled = true;
 
+      const seriesSelect = document.getElementById("version-select");
+      const seriesName = seriesSelect.options[seriesSelect.selectedIndex].text;
       const timeStr = document.getElementById("timer").innerText;
       let msg = "";
       if (isClear) {
         msg = isNoLivesMode 
-          ? `🎉 全カード 完全クリアおめでとうございます！\nクリアタイム: ${timeStr}\nミス数: ${missCount}回`
-          : `🎉 全カード 完全クリアおめでとうございます！\nクリアタイム: ${timeStr} (残り残機: ${lives}/${initialLives})`;
+          ? `🎉 「${seriesName}」全カード 完全クリアおめでとうございます！\nクリアタイム: ${timeStr}\nミス数: ${missCount}回`
+          : `🎉 「${seriesName}」全カード 完全クリアおめでとうございます！\nクリアタイム: ${timeStr} (残り残機: ${lives}/${initialLives})`;
       } else {
         msg = `💥 ゲームオーバー...\n正解数: ${correctCount} / ${cardsData.length} 枚\nタイム: ${timeStr}`;
       }
       
       setTimeout(() => {
         if (confirm(`${msg}\n\nX（Twitter）にスコアを投稿しますか？`)) {
-          shareOnX(isClear, timeStr);
+          shareOnX(isClear, timeStr, seriesName);
         }
       }, 100);
     }
 
-    function shareOnX(isClear, timeStr) {
-      const statusText = isClear ? "全カード完全クリア！🏆" : `結果: ${correctCount}/${cardsData.length}枚正解`;
+    function shareOnX(isClear, timeStr, seriesName) {
+      const statusText = isClear ? `「${seriesName}」全カード完全クリア！🏆` : `「${seriesName}」結果: ${correctCount}/${cardsData.length}枚正解`;
       const modeText = isNoLivesMode ? `(ミス数: ${missCount}回)` : `(残機: ${lives}/${initialLives})`;
       const text = encodeURIComponent(
-        `【三国志大戦1 言えるかな？】\n` +
+        `【三国志大戦 言えるかな？】\n` +
         `${statusText}\n` +
         `⏱ タイム: ${timeStr} ${modeText}\n` +
-        `#三国志大戦 #三国志大戦1言えるかな\n`
+        `#三国志大戦 #三国志大戦言えるかな\n`
       );
       const url = encodeURIComponent(window.location.href);
       window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, "_blank");
     }
 
-    // 初回ロード実行
     loadData();
   </script>
 </body>
