@@ -13,7 +13,9 @@
     .control-group { background: #333; padding: 4px 8px; border-radius: 4px; border: 1px solid #555; }
     input[type="text"] { font-size: 1.1rem; padding: 6px 12px; width: 85%; max-width: 280px; border-radius: 4px; border: 1px solid #666; background: #333; color: #fff; text-align: center; }
     .stats { font-size: 0.9rem; margin-top: 8px; color: #ccc; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; align-items: center; }
-    .lives-icons { font-size: 0.8rem; letter-spacing: -1px; word-break: break-all; max-width: 200px; display: inline-block; vertical-align: middle; }
+    
+    /* 残機アイコンのサイズ調整（必要に応じて調整してください） */
+    .shiki-icon { width: 16px; height: 16px; vertical-align: middle; margin: 0 1px; }
     
     /* PC表示：カード最大幅77pxに合わせ自動で最適列数で並ぶ */
     .card-container {
@@ -83,7 +85,7 @@
 
     <div class="stats">
       <span>正解: <span id="score">0</span>/<span id="total-count">0</span></span>
-      <span id="lives-display-container">残機: <span id="lives" class="lives-icons">❤️❤️❤️❤️❤️❤️❤️❤️❤️❤️❤️❤️</span></span>
+      <span id="lives-display-container">残機: <span id="lives-icons-container"></span></span>
       <span id="miss-display-container" style="display: none;">ミス: <span id="miss-count" style="color: #ff6b6b; font-weight: bold;">0</span>回</span>
       <span>⏱ <span id="timer">00:00</span></span>
     </div>
@@ -97,8 +99,8 @@
 
   <script>
     let cardsData = [];
-    let maxLives = 12;
-    let lives = 12;
+    let initialLives = 12; // 選択された初期残機数 (12, 9, 6)
+    let lives = 12;        // 現在の残機数
     let missCount = 0;
     let isNoLivesMode = false;
     let correctCount = 0;
@@ -166,8 +168,8 @@
         document.getElementById("miss-display-container").style.display = "inline";
       } else {
         isNoLivesMode = false;
-        maxLives = parseInt(val, 10);
-        lives = maxLives;
+        initialLives = parseInt(val, 10);
+        lives = initialLives;
         document.getElementById("lives-display-container").style.display = "inline";
         document.getElementById("miss-display-container").style.display = "none";
         updateLivesDisplay();
@@ -297,7 +299,34 @@
     });
 
     function updateLivesDisplay() {
-      document.getElementById("lives").innerText = "❤️".repeat(lives) + "🖤".repeat(maxLives - lives);
+      const container = document.getElementById("lives-icons-container");
+      container.innerHTML = "";
+
+      // 1. 残りの残機（shiki_active.gif）を現在の残機数分配置
+      for (let i = 0; i < lives; i++) {
+        const img = document.createElement("img");
+        img.src = "images/shiki_active.gif";
+        img.className = "shiki-icon";
+        container.appendChild(img);
+      }
+
+      // 2. 失った残機（shiki_deactive.gif）をミスした回数分配置
+      const deactiveCount = initialLives - lives;
+      for (let i = 0; i < deactiveCount; i++) {
+        const img = document.createElement("img");
+        img.src = "images/shiki_deactive.gif";
+        img.className = "shiki-icon";
+        container.appendChild(img);
+      }
+
+      // 3. 基準12から減らした分（shiki_out.gif）を配置
+      const outCount = 12 - initialLives;
+      for (let i = 0; i < outCount; i++) {
+        const img = document.createElement("img");
+        img.src = "images/shiki_out.gif";
+        img.className = "shiki-icon";
+        container.appendChild(img);
+      }
     }
 
     function endGame(isClear) {
@@ -310,7 +339,7 @@
       if (isClear) {
         msg = isNoLivesMode 
           ? `🎉 全カード 完全クリアおめでとうございます！\nクリアタイム: ${timeStr}\nミス数: ${missCount}回`
-          : `🎉 全カード 完全クリアおめでとうございます！\nクリアタイム: ${timeStr} (残り残機: ${lives}/${maxLives})`;
+          : `🎉 全カード 完全クリアおめでとうございます！\nクリアタイム: ${timeStr} (残り残機: ${lives}/${initialLives})`;
       } else {
         msg = `💥 ゲームオーバー...\n正解数: ${correctCount} / ${cardsData.length} 枚\nタイム: ${timeStr}`;
       }
@@ -324,7 +353,7 @@
 
     function shareOnX(isClear, timeStr) {
       const statusText = isClear ? "全カード完全クリア！🏆" : `結果: ${correctCount}/${cardsData.length}枚正解`;
-      const modeText = isNoLivesMode ? `(ミス数: ${missCount}回)` : `(残機: ${lives}/${maxLives})`;
+      const modeText = isNoLivesMode ? `(ミス数: ${missCount}回)` : `(残機: ${lives}/${initialLives})`;
       const text = encodeURIComponent(
         `【三国志大戦1 言えるかな？】\n` +
         `${statusText}\n` +
