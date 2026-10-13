@@ -76,8 +76,8 @@
 
       <div class="control-group">
         詳細: 
-        <label><input type="radio" name="status-toggle" value="show" checked onclick="toggleStatus(true)"> 表示</label>
-        <label><input type="radio" name="status-toggle" value="hide" onclick="toggleStatus(false)"> 非表示</label>
+        <label><input type="radio" name="status-toggle" value="show" onclick="toggleStatus(true)"> 表示</label>
+        <label><input type="radio" name="status-toggle" value="hide" checked onclick="toggleStatus(false)"> 非表示</label>
       </div>
     </div>
 
@@ -93,7 +93,7 @@
     </div>
   </div>
 
-  <div class="card-container" id="card-grid"></div>
+  <div class="card-container hidden-status" id="card-grid"></div>
 
   <script>
     let cardsData = [];
