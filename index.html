@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>三国志大戦1 言えるかな？</title>
+  <style>
+    body { font-family: sans-serif; background: #1a1a1a; color: #fff; text-align: center; margin: 0; padding: 20px; }
+    .header { position: sticky; top: 0; background: #2a2a2a; padding: 15px; z-index: 100; border-bottom: 2px solid #444; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+    input[type="text"] { font-size: 1.4rem; padding: 10px 15px; width: 300px; border-radius: 4px; border: 1px solid #666; background: #333; color: #fff; text-align: center; }
+    .stats { font-size: 1.2rem; margin-top: 10px; color: #ccc; }
+    .card-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; justify-content: center; margin-top: 20px; padding: 10px; max-width: 1400px; margin-left: auto; margin-right: auto; }
+    .card { background: #2b2b2b; border-radius: 8px; padding: 8px; text-align: center; border: 1px solid #444; transition: transform 0.2s; }
+    .card.cleared { background: #1e3a1e; border-color: #4CAF50; }
+    .card img { width: 100%; height: 150px; object-fit: cover; background: #111; border-radius: 4px; }
+    .card-info { font-size: 0.75rem; margin-top: 5px; line-height: 1.3; color: #aaa; }
+    .card-name { font-weight: bold; color: #ffd700; min-height: 1.4em; font-size: 0.9rem; margin-top: 4px; }
+    .wrong-flash { animation: flash 0.3s ease; }
+    @keyframes flash { 0% { background: #600; } 100% { background: #1a1a1a; } }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>三国志大戦1 言えるかな？ (全230枚)</h1>
+    <div class="stats">
+      正解数: <span id="score">0</span> / <span id="total-count">0</span> |
+      残機: <span id="lives">❤️❤️❤️</span> |
+      タイム: <span id="timer">00:00</span>
+    </div>
+    <div style="margin-top: 12px;">
+      <input type="text" id="name-input" placeholder="武将名を入力 (例: うきん / 于禁)" autofocus autocomplete="off">
+    </div>
+  </div>
+
+  <div class="card-container" id="card-grid"></div>
+
+  <script>
+    // カタカナをひらがなに変換するヘルパー関数
+    function toHiragana(str) {
+      return str.replace(/[\u30a1-\u30f6]/g, match => {
+        return String.fromCharCode(match.charCodeAt(0) - 0x60);
+      });
+    }
+
+    let cardsData = [];
+    let lives = 3;
+    let correctCount = 0;
+    let seconds = 0;
+    let timerInterval = null;
+    let isGameOver = false;
+
+    // JSONデータの読み込み（sangokushi_cards.jsonを同じ階層に置く想定）
+    fetch('sangokushi_cards.json')
+      .then(res => res.json())
+      .then(data => {
+        cardsData = data.map(item => {
+          const fullName = item["武将名"] || "";
+          const baseName = fullName.split(" ")[0]; // 苗字部分（例: ウキン）
+          
+          return {
+            no: String(item["No"]).padStart(3, '0'),
+            rarity: item["レアリティ"],
+            fullName: fullName,
+            nameKana: baseName, // カタカナ
+            nameHira: toHiragana(baseName), // ひらがな
+            kanjiName: item["漢字名"] || "", // 漢字名
+            power: item["武力"],
+            int: item["知力"],
+            cost: item["武将コスト"],
+            strategy: item["計略名"],
+            img: `${String(item["No"]).padStart(3, '0')}_${baseName}.jpg`,
+            isCleared: false
+          };
+        });
+
+        initGame();
+      })
+      .catch(err => {
+        document.body.innerHTML = "<h2 style='color:red; margin-top:50px;'>sangokushi_cards.json の読み込みに失敗しました。ファイル配置を確認してください。</h2>";
+      });
+
+    function initGame() {
+      const grid = document.getElementById("card-grid");
+      document.getElementById("total-count").innerText = cardsData.length;
+
+      cardsData.forEach(card => {
+        const cardEl = document.createElement("div");
+        cardEl.className = "card";
+        cardEl.id = `card-${card.no}`;
+        cardEl.innerHTML = `
+          <img src="images/card_back.jpg" id="img-${card.no}" alt="カード裏面">
+          <div class="card-name" id="name-${card.no}">???</div>
+          <div class="card-info">
+            No.${card.no} [${card.rarity}]<br>
+            武${card.power} / 知${card.int} / ｺｽﾄ${card.cost}<br>
+            【${card.strategy}】
+          </div>
+        `;
+        grid.appendChild(cardEl);
+      });
+
+      // タイマー開始
+      timerInterval = setInterval(() => {
+        seconds++;
+        const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+        const s = String(seconds % 60).padStart(2, '0');
+        document.getElementById("timer").innerText = `${m}:${s}`;
+      }, 1000);
+    }
+
+    // 入力判定処理
+    const inputEl = document.getElementById("name-input");
+    inputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !isGameOver && cardsData.length > 0) {
+        let val = inputEl.value.trim();
+        if (!val) return;
+
+        const valHira = toHiragana(val);
+        const valKana = val.replace(/[\u3041-\u3096]/g, match => String.fromCharCode(match.charCodeAt(0) + 0x60));
+
+        // 条件に一致し、まだクリアされていないカードの中で「Noが最も小さいもの」を検索
+        const targetCard = cardsData
+          .filter(c => {
+            if (c.isCleared) return false;
+            // 判定条件: 
+            // 1. ひらがな完全一致 (例: "うきん")
+            // 2. カタカナ完全一致 (例: "ウキン")
+            // 3. 漢字名完全一致 (例: "于禁")
+            return c.nameHira === valHira || c.nameKana === valKana || c.kanjiName === val;
+          })
+          .sort((a, b) => parseInt(a.no) - parseInt(b.no))[0];
+
+        if (targetCard) {
+          // 【正解】
+          targetCard.isCleared = true;
+          correctCount++;
+          
+          const cardBox = document.getElementById(`card-${targetCard.no}`);
+          cardBox.classList.add("cleared");
+          document.getElementById(`img-${targetCard.no}`).src = `images/${targetCard.img}`;
+          document.getElementById(`name-${targetCard.no}`).innerText = targetCard.fullName;
+          document.getElementById("score").innerText = correctCount;
+          inputEl.value = "";
+
+          if (correctCount === cardsData.length) {
+            endGame(true);
+          }
+        } else {
+          // 【お手付き】
+          lives--;
+          document.body.classList.add("wrong-flash");
+          setTimeout(() => document.body.classList.remove("wrong-flash"), 300);
+          updateLivesDisplay();
+          inputEl.value = "";
+
+          if (lives <= 0) {
+            endGame(false);
+          }
+        }
+      }
+    });
+
+    function updateLivesDisplay() {
+      document.getElementById("lives").innerText = "❤️".repeat(lives) + "🖤".repeat(3 - lives);
+    }
+
+    function endGame(isClear) {
+      isGameOver = true;
+      clearInterval(timerInterval);
+      inputEl.disabled = true;
+
+      const timeStr = document.getElementById("timer").innerText;
+      const msg = isClear 
+        ? `🎉 全230枚 完全クリアおめでとうございます！\nクリアタイム: ${timeStr}` 
+        : `💥 ゲームオーバー...\n正解数: ${correctCount} / ${cardsData.length} 枚\nタイム: ${timeStr}`;
+      
+      setTimeout(() => {
+        if (confirm(`${msg}\n\nX（Twitter）にスコアを投稿しますか？`)) {
+          shareOnX(isClear, timeStr);
+        }
+      }, 100);
+    }
+
+    function shareOnX(isClear, timeStr) {
+      const statusText = isClear ? "全230枚完全クリア！🏆" : `結果: ${correctCount}/${cardsData.length}枚正解`;
+      const text = encodeURIComponent(
+        `【三国志大戦1 言えるかな？】\n` +
+        `${statusText}\n` +
+        `⏱ タイム: ${timeStr} (残機: ${lives}/3)\n` +
+        `#三国志大戦 #三国志大戦1言えるかな\n`
+      );
+      const url = encodeURIComponent(window.location.href);
+      window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, "_blank");
+    }
+  </script>
+</body>
+</html>
