@@ -22,27 +22,20 @@
 <body>
 
   <div class="header">
-    <h1>三国志大戦1 言えるかな？ (全230枚)</h1>
+    <h1>三国志大戦1 言えるかな？</h1>
     <div class="stats">
       正解数: <span id="score">0</span> / <span id="total-count">0</span> |
       残機: <span id="lives">❤️❤️❤️</span> |
       タイム: <span id="timer">00:00</span>
     </div>
     <div style="margin-top: 12px;">
-      <input type="text" id="name-input" placeholder="武将名を入力 (例: うきん / 于禁)" autofocus autocomplete="off">
+      <input type="text" id="name-input" placeholder="武将名を入力 (例: 于禁)" autofocus autocomplete="off">
     </div>
   </div>
 
   <div class="card-container" id="card-grid"></div>
 
   <script>
-    // カタカナをひらがなに変換するヘルパー関数
-    function toHiragana(str) {
-      return str.replace(/[\u30a1-\u30f6]/g, match => {
-        return String.fromCharCode(match.charCodeAt(0) - 0x60);
-      });
-    }
-
     let cardsData = [];
     let lives = 3;
     let correctCount = 0;
@@ -50,26 +43,29 @@
     let timerInterval = null;
     let isGameOver = false;
 
-    // JSONデータの読み込み（sangokushi_cards.jsonを同じ階層に置く想定）
+    // sangokushi_cards.json の読み込み
     fetch('sangokushi_cards.json')
       .then(res => res.json())
       .then(data => {
-        cardsData = data.map(item => {
-          const fullName = item["武将名"] || "";
-          const baseName = fullName.split(" ")[0]; // 苗字部分（例: ウキン）
-          
+        cardsData = data.map((item, index) => {
+          const no = String(item["No"] || (index + 1));
+          const bushoName = String(item["武将名"] || "").trim(); // 武将名 (例: 于禁)
+          const yomi = String(item["ヨミ"] || "").trim(); // 読み仮名 (例: ウキン ブンソク)
+
+          // 画像ファイル名規則: <No>_<読み仮名>.jpg
+          // 例: 1_ウキン ブンソク.jpg や 001_ウキン ブンソク.jpg など
+          const imgFileName = `${no}_${yomi}.jpg`;
+
           return {
-            no: String(item["No"]).padStart(3, '0'),
-            rarity: item["レアリティ"],
-            fullName: fullName,
-            nameKana: baseName, // カタカナ
-            nameHira: toHiragana(baseName), // ひらがな
-            kanjiName: item["漢字名"] || "", // 漢字名
-            power: item["武力"],
-            int: item["知力"],
-            cost: item["武将コスト"],
-            strategy: item["計略名"],
-            img: `${String(item["No"]).padStart(3, '0')}_${baseName}.jpg`,
+            id: no,
+            rarity: item["レアリティ"] || "",
+            bushoName: bushoName,
+            yomi: yomi,
+            power: item["武力"] || "",
+            int: item["知力"] || "",
+            cost: item["武将コスト"] || "",
+            strategy: item["計略名"] || "",
+            img: imgFileName,
             isCleared: false
           };
         });
@@ -77,6 +73,7 @@
         initGame();
       })
       .catch(err => {
+        console.error(err);
         document.body.innerHTML = "<h2 style='color:red; margin-top:50px;'>sangokushi_cards.json の読み込みに失敗しました。ファイル配置を確認してください。</h2>";
       });
 
@@ -84,15 +81,15 @@
       const grid = document.getElementById("card-grid");
       document.getElementById("total-count").innerText = cardsData.length;
 
-      cardsData.forEach(card => {
+      cardsData.forEach((card, idx) => {
         const cardEl = document.createElement("div");
         cardEl.className = "card";
-        cardEl.id = `card-${card.no}`;
+        cardEl.id = `card-${idx}`;
         cardEl.innerHTML = `
-          <img src="images/card_back.jpg" id="img-${card.no}" alt="カード裏面">
-          <div class="card-name" id="name-${card.no}">???</div>
+          <img src="images/card_back.jpg" id="img-${idx}" alt="カード裏面">
+          <div class="card-name" id="name-${idx}">???</div>
           <div class="card-info">
-            No.${card.no} [${card.rarity}]<br>
+            No.${card.id} [${card.rarity}]<br>
             武${card.power} / 知${card.int} / ｺｽﾄ${card.cost}<br>
             【${card.strategy}】
           </div>
@@ -113,33 +110,27 @@
     const inputEl = document.getElementById("name-input");
     inputEl.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !isGameOver && cardsData.length > 0) {
-        let val = inputEl.value.trim();
+        const val = inputEl.value.trim();
         if (!val) return;
 
-        const valHira = toHiragana(val);
-        const valKana = val.replace(/[\u3041-\u3096]/g, match => String.fromCharCode(match.charCodeAt(0) + 0x60));
-
-        // 条件に一致し、まだクリアされていないカードの中で「Noが最も小さいもの」を検索
+        // 【ルール】「武将名」が完全一致する未クリアのカードを探す（番号が小さいものを優先）
         const targetCard = cardsData
-          .filter(c => {
-            if (c.isCleared) return false;
-            // 判定条件: 
-            // 1. ひらがな完全一致 (例: "うきん")
-            // 2. カタカナ完全一致 (例: "ウキン")
-            // 3. 漢字名完全一致 (例: "于禁")
-            return c.nameHira === valHira || c.nameKana === valKana || c.kanjiName === val;
-          })
-          .sort((a, b) => parseInt(a.no) - parseInt(b.no))[0];
+          .filter(c => !c.isCleared && c.bushoName === val)
+          .sort((a, b) => parseInt(a.id) - parseInt(b.id))[0];
 
-        if (targetCard) {
+        const targetIndex = cardsData.indexOf(targetCard);
+
+        if (targetCard && targetIndex !== -1) {
           // 【正解】
           targetCard.isCleared = true;
           correctCount++;
           
-          const cardBox = document.getElementById(`card-${targetCard.no}`);
+          const cardBox = document.getElementById(`card-${targetIndex}`);
           cardBox.classList.add("cleared");
-          document.getElementById(`img-${targetCard.no}`).src = `images/${targetCard.img}`;
-          document.getElementById(`name-${targetCard.no}`).innerText = targetCard.fullName;
+          
+          // 指定された命名規則の画像をロード
+          document.getElementById(`img-${targetIndex}`).src = `images/${targetCard.img}`;
+          document.getElementById(`name-${targetIndex}`).innerText = targetCard.bushoName;
           document.getElementById("score").innerText = correctCount;
           inputEl.value = "";
 
@@ -172,7 +163,7 @@
 
       const timeStr = document.getElementById("timer").innerText;
       const msg = isClear 
-        ? `🎉 全230枚 完全クリアおめでとうございます！\nクリアタイム: ${timeStr}` 
+        ? `🎉 全カード 完全クリアおめでとうございます！\nクリアタイム: ${timeStr}` 
         : `💥 ゲームオーバー...\n正解数: ${correctCount} / ${cardsData.length} 枚\nタイム: ${timeStr}`;
       
       setTimeout(() => {
@@ -183,7 +174,7 @@
     }
 
     function shareOnX(isClear, timeStr) {
-      const statusText = isClear ? "全230枚完全クリア！🏆" : `結果: ${correctCount}/${cardsData.length}枚正解`;
+      const statusText = isClear ? "全カード完全クリア！🏆" : `結果: ${correctCount}/${cardsData.length}枚正解`;
       const text = encodeURIComponent(
         `【三国志大戦1 言えるかな？】\n` +
         `${statusText}\n` +
