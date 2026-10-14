@@ -43,10 +43,10 @@
     .card { background: #2b2b2b; border-radius: 4px; padding: 3px; text-align: center; border: 1px solid #444; overflow: hidden; box-sizing: border-box; }
     .card.cleared { background: #1e3a1e; border-color: #4CAF50; }
     
-    /* カード内の画像コンテナ（サイズ固定: 77×110） */
+    /* カード内の画像コンテナ（サイズ固定: 77×108） */
     .card-img-wrapper {
       width: 77px;
-      height: 110px;
+      height: 108px;
       background: #111;
       border-radius: 2px;
       margin: 0 auto;
@@ -57,10 +57,10 @@
     /* 1. 非表示 (裏面) または 正解クリア時 */
     .card-container.mode-hide .card-img-wrapper img,
     .card.cleared .card-img-wrapper img {
-      width: 100%;
-      height: 100%;
+      width: 77px;
+      height: 108px;
       display: block;
-      object-fit: cover;
+      object-fit: fill; /* アスペクト比の誤差による切れを防ぐ */
       object-position: center;
       transform: none;
       position: static;
@@ -68,15 +68,15 @@
 
     /* 2. 一部表示: 画像サイズそのままで約500%(5倍)に拡大し、中央を表示 */
     .card-container.mode-partial .card-img-wrapper img:not(.cleared-img) {
-      width: 100%;
-      height: 100%;
+      width: 77px;
+      height: 108px;
       display: block;
       object-fit: cover;
       object-position: center;
       transform: scale(5);
     }
 
-    /* 3. 全部表示: 画像を元のサイズ(77×108)のまま右上に配置し、枠(77×110)の右上から61×93の範囲以外をクリップ（トリミング） */
+    /* 3. 全部表示: 画像を元のサイズ(77×108)のまま右上に配置し、枠(77×108)の右上から61×93の範囲以外をクリップ（トリミング） */
     .card-container.mode-full .card-img-wrapper img:not(.cleared-img) {
       position: absolute;
       top: 0;
@@ -84,7 +84,8 @@
       width: 77px;
       height: 108px;
       display: block;
-      clip-path: inset(0 0 15px 16px); /* 上:0, 右:0, 下:108-93=15px, 左:77-61=16px をカット */
+      object-fit: fill;
+      clip-path: inset(0 0 15px 16px); /* 上:0, 右:0, 下:108-93=15px, 左:77-61=16px カット */
     }
 
     /* ステータス表示・非表示の切り替えクラス */
@@ -110,7 +111,6 @@
       <div class="control-group">
         シリーズ: <select id="version-select" onchange="changeVersion()">
           <option value="1">三国志大戦</option>
-          <option value="2">三国志大戦2</option>
         </select>
       </div>
 
@@ -457,148 +457,3 @@
 
         cardEl.innerHTML = `
           <div class="card-img-wrapper">
-            <img src="${imgSrc}" id="img-${idx}" class="${card.isCleared ? 'cleared-img' : ''}" alt="カード画像">
-          </div>
-          <div class="card-name" id="name-${idx}">${card.isCleared ? card.bushoName : "???"}</div>
-          <div class="card-info">
-            No.${card.displayNo} [${card.rarity}]<br>
-            武${card.power}/知${card.int}/ｺｽト${card.cost}<br>
-            【${card.strategy}】
-          </div>
-        `;
-        grid.appendChild(cardEl);
-      });
-
-      changeLivesMode();
-      if (isGameOver) {
-        document.getElementById("name-input").disabled = true;
-      }
-    }
-
-    const inputEl = document.getElementById("name-input");
-    inputEl.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !isGameOver && cardsData.length > 0) {
-        const rawVal = inputEl.value;
-        const normVal = normalizeStr(rawVal);
-        if (!normVal) return;
-
-        startTimerIfNeeded();
-
-        const targetCard = cardsData
-          .filter(c => !c.isCleared && (normalizeStr(c.bushoName) === normVal || normalizeStr(c.yomiFirst) === normVal))
-          .sort((a, b) => parseInt(a.displayNo) - parseInt(b.displayNo))[0];
-
-        const targetIndex = cardsData.indexOf(targetCard);
-
-        if (targetCard && targetIndex !== -1) {
-          targetCard.isCleared = true;
-          correctCount++;
-          
-          const cardBox = document.getElementById(`card-${targetIndex}`);
-          cardBox.classList.add("cleared");
-          
-          const targetImg = document.getElementById(`img-${targetIndex}`);
-          targetImg.src = `images/${targetCard.imgPath}`;
-          targetImg.classList.add("cleared-img");
-
-          document.getElementById(`name-${targetIndex}`).innerText = targetCard.bushoName;
-          document.getElementById("score").innerText = correctCount;
-          inputEl.value = "";
-
-          saveGameState();
-
-          if (correctCount === cardsData.length) {
-            endGame(true);
-          }
-        } else {
-          inputEl.value = "";
-          document.body.classList.add("wrong-flash");
-          setTimeout(() => document.body.classList.remove("wrong-flash"), 300);
-
-          if (isNoLivesMode) {
-            missCount++;
-            document.getElementById("miss-count").innerText = missCount;
-          } else {
-            lives--;
-            updateLivesDisplay();
-
-            if (lives <= 0) {
-              endGame(false);
-            }
-          }
-          saveGameState();
-        }
-      }
-    });
-
-    function updateLivesDisplay() {
-      const container = document.getElementById("lives-icons-container");
-      container.innerHTML = "";
-      const folder = getCurrentFolder();
-
-      for (let i = 0; i < lives; i++) {
-        const img = document.createElement("img");
-        img.src = `images/${folder}/shiki_active.gif`;
-        img.className = "shiki-icon";
-        container.appendChild(img);
-      }
-
-      const deactiveCount = initialLives - lives;
-      for (let i = 0; i < deactiveCount; i++) {
-        const img = document.createElement("img");
-        img.src = `images/${folder}/shiki_deactive.gif`;
-        img.className = "shiki-icon";
-        container.appendChild(img);
-      }
-
-      const outCount = 12 - initialLives;
-      for (let i = 0; i < outCount; i++) {
-        const img = document.createElement("img");
-        img.src = `images/${folder}/shiki_out.gif`;
-        img.className = "shiki-icon";
-        container.appendChild(img);
-      }
-    }
-
-    function endGame(isClear) {
-      isGameOver = true;
-      if (timerInterval) clearInterval(timerInterval);
-      inputEl.disabled = true;
-      saveGameState();
-
-      const seriesSelect = document.getElementById("version-select");
-      const seriesName = seriesSelect.options[seriesSelect.selectedIndex].text;
-      const timeStr = document.getElementById("timer").innerText;
-      let msg = "";
-      if (isClear) {
-        msg = isNoLivesMode 
-          ? `🎉 「${seriesName}」全カード 完全クリアおめでとうございます！\nクリアタイム: ${timeStr}\nミス数: ${missCount}回`
-          : `🎉 「${seriesName}」全カード 完全クリアおめでとうございます！\nクリアタイム: ${timeStr} (残り残機: ${lives}/${initialLives})`;
-      } else {
-        msg = `💥 ゲームオーバー...\n正解数: ${correctCount} / ${cardsData.length} 枚\nタイム: ${timeStr}`;
-      }
-      
-      setTimeout(() => {
-        if (confirm(`${msg}\n\nX（Twitter）にスコアを投稿しますか？`)) {
-          shareOnX(isClear, timeStr, seriesName);
-        }
-      }, 100);
-    }
-
-    function shareOnX(isClear, timeStr, seriesName) {
-      const statusText = isClear ? `「${seriesName}」全カード完全クリア！🏆` : `「${seriesName}」結果: ${correctCount}/${cardsData.length}枚正解`;
-      const modeText = isNoLivesMode ? `(ミス数: ${missCount}回)` : `(残機: ${lives}/${initialLives})`;
-      const text = encodeURIComponent(
-        `【三国志大戦 言えるかな？】\n` +
-        `${statusText}\n` +
-        `⏱ タイム: ${timeStr} ${modeText}\n` +
-        `#三国志大戦 #三国志大戦言えるかな\n`
-      );
-      const url = encodeURIComponent(window.location.href);
-      window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, "_blank");
-    }
-
-    loadData();
-  </script>
-</body>
-</html>
