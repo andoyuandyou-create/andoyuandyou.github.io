@@ -76,15 +76,15 @@
       transform: scale(5);
     }
 
-    /* 3. 全部表示: 画像を元のサイズ(77×110)のまま右上に配置し、枠(77×110)の右上から61×93の範囲以外をクリップ（トリミング） */
+    /* 3. 全部表示: 画像を元のサイズ(77×108)のまま右上に配置し、枠(77×110)の右上から61×93の範囲以外をクリップ（トリミング） */
     .card-container.mode-full .card-img-wrapper img:not(.cleared-img) {
       position: absolute;
       top: 0;
       right: 0;
       width: 77px;
-      height: 110px;
+      height: 108px;
       display: block;
-      clip-path: inset(0 0 17px 16px); /* 上:0, 右:0, 下:110-93=17px, 左:77-61=16px をカット */
+      clip-path: inset(0 0 15px 16px); /* 上:0, 右:0, 下:108-93=15px, 左:77-61=16px をカット */
     }
 
     /* ステータス表示・非表示の切り替えクラス */
