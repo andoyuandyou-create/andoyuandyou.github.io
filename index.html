@@ -60,27 +60,30 @@
       display: block;
     }
 
-    /* 1. 非表示 (裏面など) / 通常表示 */
+    /* 1. 非表示 (裏面など) */
     .card-container.mode-hide .card-img-wrapper img {
       object-fit: cover;
       object-position: center;
     }
 
-    /* 2. 一部表示: 画像サイズそのままで中央付近を表示（縦長を防ぐため適度なスケール・フィット調整） */
+    /* 2. 一部表示: 画像サイズそのままで約500%(5倍)に拡大し、中央を表示 */
     .card-container.mode-partial .card-img-wrapper img {
       object-fit: cover;
       object-position: center;
-      transform: scale(2.2); /* 縦長になりすぎない倍率に調整 */
+      transform: scale(5);
     }
 
     /* 3. 全部表示: 右上から 61×93 ピクセルになるようにトリミング */
     .card-container.mode-full .card-img-wrapper img {
       object-fit: none;
       object-position: right top;
-      width: 77px;
-      height: 110px;
+      width: 61px;
+      height: 93px;
     }
 
+    /* ステータス表示・非表示の切り替えクラス */
+    .card-container.hidden-status .card-info { display: none; }
+    
     .card-info { font-size: 0.55rem; margin-top: 3px; line-height: 1.15; color: #aaa; word-break: break-all; }
     .card-name { font-weight: bold; color: #ffd700; min-height: 1.2em; font-size: 0.65rem; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     
@@ -144,7 +147,8 @@
     </div>
   </div>
 
-  <div class="card-container mode-hide" id="card-grid"></div>
+  <!-- デフォルトでステータス非表示(hidden-status)にする -->
+  <div class="card-container mode-hide hidden-status" id="card-grid"></div>
 
   <script>
     let cardsData = [];
@@ -158,19 +162,16 @@
     let isTimerStarted = false;
     let isGameOver = false;
 
-    // ひらがなをカタカナに変換するヘルパー（表記ゆれ・入力ゆれ対応用）
     function toKatakana(str) {
       return str.replace(/[\u3041-\u3096]/g, function(match) {
         return String.fromCharCode(match.charCodeAt(0) + 0x60);
       });
     }
 
-    // 比較用に文字列を正規化（全角半角、大文字小文字、ひらがなカタカナを統一）
     function normalizeStr(str) {
       if (!str) return "";
       let s = str.trim().toLowerCase();
       s = toKatakana(s);
-      // 全角英数・記号を半角に
       s = s.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(s) {
         return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
       });
@@ -265,6 +266,7 @@
       } else {
         grid.classList.add("hidden-status");
       }
+      saveGameState();
     }
 
     function changeDisplayMode(mode) {
@@ -283,6 +285,7 @@
           }
         }
       });
+      saveGameState();
     }
 
     function saveGameState() {
@@ -298,7 +301,8 @@
         isGameOver,
         isTimerStarted,
         livesSelectVal: document.getElementById("lives-select").value,
-        displayMode: document.querySelector('input[name="display-mode"]:checked').value
+        displayMode: document.querySelector('input[name="display-mode"]:checked').value,
+        statusShow: !document.getElementById("card-grid").classList.contains("hidden-status")
       };
       localStorage.setItem(getStorageKey(), JSON.stringify(state));
     }
@@ -336,6 +340,14 @@
             radio.checked = true;
             changeDisplayMode(state.displayMode);
           }
+        }
+
+        // ステータス表示・非表示の復元
+        const statusRadioVal = state.statusShow ? "show" : "hide";
+        const statusRadio = document.querySelector(`input[name="status-toggle"][value="${statusRadioVal}"]`);
+        if (statusRadio) {
+          statusRadio.checked = true;
+          toggleStatus(state.statusShow);
         }
 
         if (isTimerStarted && !isGameOver) {
@@ -465,7 +477,6 @@
 
         startTimerIfNeeded();
 
-        // 武将名、またはヨミの前半部（半角スペースまで）の正規化完全一致をチェック
         const targetCard = cardsData
           .filter(c => !c.isCleared && (normalizeStr(c.bushoName) === normVal || normalizeStr(c.yomiFirst) === normVal))
           .sort((a, b) => parseInt(a.displayNo) - parseInt(b.displayNo))[0];
