@@ -73,12 +73,14 @@
       transform: scale(5);
     }
 
-    /* 3. 全部表示: 右上から 61×93 ピクセルになるようにトリミング */
+    /* 3. 全部表示: 右上から 61×93 ピクセルになるようにトリミング（右上に寄せる） */
     .card-container.mode-full .card-img-wrapper img {
-      object-fit: none;
-      object-position: right top;
+      position: absolute;
+      top: 0;
+      right: 0;
       width: 61px;
       height: 93px;
+      object-fit: fill;
     }
 
     /* ステータス表示・非表示の切り替えクラス */
@@ -252,11 +254,12 @@
       } else {
         isNoLivesMode = false;
         initialLives = parseInt(val, 10);
-        if (!isGameOver && lives > initialLives) lives = initialLives;
+        lives = initialLives;
         document.getElementById("lives-display-container").style.display = "inline";
         document.getElementById("miss-display-container").style.display = "none";
         updateLivesDisplay();
       }
+      saveGameState();
     }
 
     function toggleStatus(show) {
@@ -342,7 +345,6 @@
           }
         }
 
-        // ステータス表示・非表示の復元
         const statusRadioVal = state.statusShow ? "show" : "hide";
         const statusRadio = document.querySelector(`input[name="status-toggle"][value="${statusRadioVal}"]`);
         if (statusRadio) {
@@ -373,6 +375,7 @@
       if (confirm("ゲームの進行状況とタイマーをリセットしますか？")) {
         localStorage.removeItem(getStorageKey());
         if (timerInterval) clearInterval(timerInterval);
+        
         resetStatsOnly();
         cardsData.forEach(c => c.isCleared = false);
         
