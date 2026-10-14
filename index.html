@@ -60,7 +60,7 @@
       width: 77px;
       height: 108px;
       display: block;
-      object-fit: fill; /* アスペクト比の誤差による切れを防ぐ */
+      object-fit: fill;
       object-position: center;
       transform: none;
       position: static;
@@ -76,7 +76,7 @@
       transform: scale(5);
     }
 
-    /* 3. 全部表示: 画像を元のサイズ(77×108)のまま右上に配置し、枠(77×108)の右上から61×93の範囲以外をクリップ（トリミング） */
+    /* 3. 全部表示: 画像を元のサイズ(77×108)のまま右上に配置し、枠(77×108)の右上から61×93の範囲以外をクリップ */
     .card-container.mode-full .card-img-wrapper img:not(.cleared-img) {
       position: absolute;
       top: 0;
@@ -85,7 +85,7 @@
       height: 108px;
       display: block;
       object-fit: fill;
-      clip-path: inset(0 0 15px 16px); /* 上:0, 右:0, 下:108-93=15px, 左:77-61=16px カット */
+      clip-path: inset(0 0 15px 16px);
     }
 
     /* ステータス表示・非表示の切り替えクラス */
@@ -111,6 +111,7 @@
       <div class="control-group">
         シリーズ: <select id="version-select" onchange="changeVersion()">
           <option value="1">三国志大戦</option>
+          <option value="2">三国志大戦2</option>
         </select>
       </div>
 
@@ -153,7 +154,6 @@
     </div>
   </div>
 
-  <!-- デフォルトでステータス非表示(hidden-status)にする -->
   <div class="card-container mode-hide hidden-status" id="card-grid"></div>
 
   <script>
@@ -201,7 +201,7 @@
 
       fetch(jsonFile)
         .then(res => {
-          if (!res.ok) throw new Error("ファイルが見つかりません");
+          if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
           return res.json();
         })
         .then(data => {
@@ -227,7 +227,7 @@
               yomiFirst: yomiFirstWord,
               power: item["武力"] || "",
               int: item["知力"] || "",
-              cost: item["武将コスト"] || "",
+              cost: item["武将コスト"] || item["コスト"] || "",
               strategy: item["計略名"] || "",
               imgPath: imgFileName,
               isCleared: false
@@ -238,8 +238,15 @@
           initGame();
         })
         .catch(err => {
-          console.error(err);
-          document.getElementById("card-grid").innerHTML = `<h3 style='color:red; grid-column: 1 / -1; margin-top:20px;'>カードデータの読み込みに失敗しました。<br>${jsonFile} の配置を確認してください。</h3>`;
+          console.error("Data load error:", err);
+          document.getElementById("card-grid").innerHTML = `
+            <div style='grid-column: 1 / -1; margin-top:20px; color:#ff6b6b;'>
+              <h3>カードデータの読み込みに失敗しました</h3>
+              <p style='font-size:0.85rem; color:#ccc;'>
+                JSONファイル (<b>${jsonFile}</b>) が配置されているか確認してください。<br>
+                ※ローカルファイル(file://)で直接開いている場合は、ローカルWebサーバー(Live Server等)をご利用ください。
+              </p>
+            </div>`;
         });
     }
 
@@ -284,7 +291,7 @@
       cardsData.forEach((card, idx) => {
         const imgEl = document.getElementById(`img-${idx}`);
         const folder = getCurrentFolder();
-        if (!card.isCleared) {
+        if (imgEl && !card.isCleared) {
           if (mode === "hide") {
             imgEl.src = `images/${folder}/card_back.jpg`;
           } else {
@@ -297,6 +304,7 @@
 
     function saveGameState() {
       if (cardsData.length === 0) return;
+      const displayModeEl = document.querySelector('input[name="display-mode"]:checked');
       const state = {
         clearedIndices: cardsData.map((c, i) => c.isCleared ? i : -1).filter(i => i !== -1),
         correctCount,
@@ -308,7 +316,7 @@
         isGameOver,
         isTimerStarted,
         livesSelectVal: document.getElementById("lives-select").value,
-        displayMode: document.querySelector('input[name="display-mode"]:checked').value,
+        displayMode: displayModeEl ? displayModeEl.value : "hide",
         statusShow: !document.getElementById("card-grid").classList.contains("hidden-status")
       };
       localStorage.setItem(getStorageKey(), JSON.stringify(state));
@@ -394,7 +402,8 @@
         document.getElementById("timer").innerText = "00:00";
         document.getElementById("miss-count").innerText = "0";
         
-        const currentMode = document.querySelector('input[name="display-mode"]:checked').value;
+        const currentModeEl = document.querySelector('input[name="display-mode"]:checked');
+        const currentMode = currentModeEl ? currentModeEl.value : "hide";
         initGame();
         changeDisplayMode(currentMode);
       }
@@ -441,7 +450,8 @@
       updateTimerDisplay();
 
       const folder = getCurrentFolder();
-      const currentMode = document.querySelector('input[name="display-mode"]:checked').value;
+      const currentModeEl = document.querySelector('input[name="display-mode"]:checked');
+      const currentMode = currentModeEl ? currentModeEl.value : "hide";
 
       cardsData.forEach((card, idx) => {
         const cardEl = document.createElement("div");
@@ -457,3 +467,148 @@
 
         cardEl.innerHTML = `
           <div class="card-img-wrapper">
+            <img src="${imgSrc}" id="img-${idx}" class="${card.isCleared ? 'cleared-img' : ''}" alt="カード画像">
+          </div>
+          <div class="card-name" id="name-${idx}">${card.isCleared ? card.bushoName : "???"}</div>
+          <div class="card-info">
+            No.${card.displayNo} [${card.rarity}]<br>
+            武${card.power}/知${card.int}/ｺｽﾄ${card.cost}<br>
+            【${card.strategy}】
+          </div>
+        `;
+        grid.appendChild(cardEl);
+      });
+
+      changeLivesMode();
+      if (isGameOver) {
+        document.getElementById("name-input").disabled = true;
+      }
+    }
+
+    const inputEl = document.getElementById("name-input");
+    inputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !isGameOver && cardsData.length > 0) {
+        const rawVal = inputEl.value;
+        const normVal = normalizeStr(rawVal);
+        if (!normVal) return;
+
+        startTimerIfNeeded();
+
+        const targetCard = cardsData
+          .filter(c => !c.isCleared && (normalizeStr(c.bushoName) === normVal || normalizeStr(c.yomiFirst) === normVal))
+          .sort((a, b) => parseInt(a.displayNo) - parseInt(b.displayNo))[0];
+
+        const targetIndex = cardsData.indexOf(targetCard);
+
+        if (targetCard && targetIndex !== -1) {
+          targetCard.isCleared = true;
+          correctCount++;
+          
+          const cardBox = document.getElementById(`card-${targetIndex}`);
+          cardBox.classList.add("cleared");
+          
+          const targetImg = document.getElementById(`img-${targetIndex}`);
+          targetImg.src = `images/${targetCard.imgPath}`;
+          targetImg.classList.add("cleared-img");
+
+          document.getElementById(`name-${targetIndex}`).innerText = targetCard.bushoName;
+          document.getElementById("score").innerText = correctCount;
+          inputEl.value = "";
+
+          saveGameState();
+
+          if (correctCount === cardsData.length) {
+            endGame(true);
+          }
+        } else {
+          inputEl.value = "";
+          document.body.classList.add("wrong-flash");
+          setTimeout(() => document.body.classList.remove("wrong-flash"), 300);
+
+          if (isNoLivesMode) {
+            missCount++;
+            document.getElementById("miss-count").innerText = missCount;
+          } else {
+            lives--;
+            updateLivesDisplay();
+
+            if (lives <= 0) {
+              endGame(false);
+            }
+          }
+          saveGameState();
+        }
+      }
+    });
+
+    function updateLivesDisplay() {
+      const container = document.getElementById("lives-icons-container");
+      container.innerHTML = "";
+      const folder = getCurrentFolder();
+
+      for (let i = 0; i < lives; i++) {
+        const img = document.createElement("img");
+        img.src = `images/${folder}/shiki_active.gif`;
+        img.className = "shiki-icon";
+        container.appendChild(img);
+      }
+
+      const deactiveCount = initialLives - lives;
+      for (let i = 0; i < deactiveCount; i++) {
+        const img = document.createElement("img");
+        img.src = `images/${folder}/shiki_deactive.gif`;
+        img.className = "shiki-icon";
+        container.appendChild(img);
+      }
+
+      const outCount = 12 - initialLives;
+      for (let i = 0; i < outCount; i++) {
+        const img = document.createElement("img");
+        img.src = `images/${folder}/shiki_out.gif`;
+        img.className = "shiki-icon";
+        container.appendChild(img);
+      }
+    }
+
+    function endGame(isClear) {
+      isGameOver = true;
+      if (timerInterval) clearInterval(timerInterval);
+      inputEl.disabled = true;
+      saveGameState();
+
+      const seriesSelect = document.getElementById("version-select");
+      const seriesName = seriesSelect.options[seriesSelect.selectedIndex].text;
+      const timeStr = document.getElementById("timer").innerText;
+      let msg = "";
+      if (isClear) {
+        msg = isNoLivesMode 
+          ? `🎉 「${seriesName}」全カード 完全クリアおめでとうございます！\nクリアタイム: ${timeStr}\nミス数: ${missCount}回`
+          : `🎉 「${seriesName}」全カード 完全クリアおめでとうございます！\nクリアタイム: ${timeStr} (残り残機: ${lives}/${initialLives})`;
+      } else {
+        msg = `💥 ゲームオーバー...\n正解数: ${correctCount} / ${cardsData.length} 枚\nタイム: ${timeStr}`;
+      }
+      
+      setTimeout(() => {
+        if (confirm(`${msg}\n\nX（Twitter）にスコアを投稿しますか？`)) {
+          shareOnX(isClear, timeStr, seriesName);
+        }
+      }, 100);
+    }
+
+    function shareOnX(isClear, timeStr, seriesName) {
+      const statusText = isClear ? `「${seriesName}」全カード完全クリア！🏆` : `「${seriesName}」結果: ${correctCount}/${cardsData.length}枚正解`;
+      const modeText = isNoLivesMode ? `(ミス数: ${missCount}回)` : `(残機: ${lives}/${initialLives})`;
+      const text = encodeURIComponent(
+        `【三国志大戦 言えるかな？】\n` +
+        `${statusText}\n` +
+        `⏱ タイム: ${timeStr} ${modeText}\n` +
+        `#三国志大戦 #三国志大戦言えるかな\n`
+      );
+      const url = encodeURIComponent(window.location.href);
+      window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, "_blank");
+    }
+
+    loadData();
+  </script>
+</body>
+</html>
