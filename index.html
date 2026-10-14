@@ -10,13 +10,12 @@
     h1 { font-size: 1.3rem; margin: 5px 0; }
     .disclaimer { font-size: 0.65rem; color: #aaa; margin: 5px 0 10px 0; line-height: 1.3; padding: 0 5px; }
     .controls-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; align-items: center; margin-bottom: 8px; font-size: 0.85rem; }
-    .control-group { background: #333; padding: 4px 8px; border-radius: 4px; border: 1px solid #555; }
+    .control-group { background: #333; padding: 4px 8px; border-radius: 4px; border: 1px solid #555; display: flex; align-items: center; gap: 6px; }
     input[type="text"] { font-size: 1.1rem; padding: 6px 12px; width: 85%; max-width: 280px; border-radius: 4px; border: 1px solid #666; background: #333; color: #fff; text-align: center; }
     .stats { font-size: 0.9rem; margin-top: 8px; color: #ccc; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; align-items: center; }
     
     .shiki-icon { width: 16px; height: 16px; vertical-align: middle; margin: 0 1px; }
     
-    /* リセットボタンのスタイル */
     .reset-btn { background: #d9534f; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
     .reset-btn:hover { background: #c9302c; }
 
@@ -67,7 +66,7 @@
 
     /* イラスト表示モード別のスタイル */
     .card img.mode-hidden {
-      object-fit: cover; /* 裏面画像を表示するため通常フィット */
+      object-fit: cover;
     }
 
     .card img.mode-partial {
@@ -109,14 +108,16 @@
     <!-- コントロール群 -->
     <div class="controls-row">
       <div class="control-group">
-        シリーズ: <select id="version-select" onchange="changeVersion()">
-          <option value="1">三国志大戦</option>
-          <option value="2" selected>三国志大戦2</option>
+        シリーズ: 
+        <select id="version-select" onchange="changeVersion()">
+          <option value="1" selected>三国志大戦</option>
+          <option value="2">三国志大戦2</option>
         </select>
       </div>
 
       <div class="control-group">
-        難易度: <select id="lives-select" onchange="changeLivesMode()">
+        難易度: 
+        <select id="lives-select" onchange="changeLivesMode()">
           <option value="12">1勢力 (残機:12)</option>
           <option value="9">2勢力 (残機:9)</option>
           <option value="6">3勢力以上 (残機:6)</option>
@@ -124,12 +125,12 @@
         </select>
       </div>
 
+      <!-- イラスト表示のラジオボタン化 -->
       <div class="control-group">
-        イラスト: <select id="illust-mode-select" onchange="changeIllustMode()">
-          <option value="hidden" selected>非表示 (裏面)</option>
-          <option value="partial">一部表示 (600%中央)</option>
-          <option value="full">全部表示 (右上61x93)</option>
-        </select>
+        イラスト:
+        <label><input type="radio" name="illust-mode" value="hidden" checked onclick="changeIllustMode('hidden')"> 非表示</label>
+        <label><input type="radio" name="illust-mode" value="partial" onclick="changeIllustMode('partial')"> 一部表示</label>
+        <label><input type="radio" name="illust-mode" value="full" onclick="changeIllustMode('full')"> 全部表示</label>
       </div>
 
       <div class="control-group">
@@ -182,7 +183,6 @@
       });
     }
 
-    // ローカルストレージのキー（シリーズごとに分離）
     function getStorageKey() {
       const ver = document.getElementById("version-select").value;
       return `sangoku_quiz_v${ver}`;
@@ -195,19 +195,19 @@
 
       fetch(jsonFile)
         .then(res => {
-          if (!res.ok) throw new Error("ファイルが見つかりません");
+          if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
           return res.json();
         })
         .then(data => {
           cardsData = data.map((item, index) => {
-            let rawNo = String(item["No"] || (index + 1)).trim();
+            let rawNo = String(item["No"] || item["no"] || item["カード番号"] || (index + 1)).trim();
             let formattedNo = rawNo;
             if (/^\d+$/.test(rawNo)) {
               formattedNo = rawNo.padStart(3, '0');
             }
 
-            const bushoName = String(item["武将名"] || "").trim();
-            const yomi = String(item["ヨミ"] || "").trim();
+            const bushoName = String(item["武将名"] || item["名前"] || "").trim();
+            const yomi = String(item["ヨミ"] || item["よみ"] || "").trim();
             const yomiFirstWord = yomi.split(" ")[0] || "";
             const imgFileName = `${folder}/${formattedNo}_${yomiFirstWord}.jpg`;
 
@@ -220,25 +220,25 @@
               yomiFirst: yomiFirstWord,
               power: item["武力"] || "",
               int: item["知力"] || "",
-              cost: item["武将コスト"] || "",
-              strategy: item["計略名"] || "",
+              cost: item["武将コスト"] || item["コスト"] || "",
+              strategy: item["計略名"] || item["計略"] || "",
               imgPath: imgFileName,
               isCleared: false
             };
           });
 
-          // 保存されたプレイステータスの復元を試みる
           restoreGameState();
           initGame();
         })
         .catch(err => {
-          console.error(err);
-          document.getElementById("card-grid").innerHTML = `<h3 style='color:red; grid-column: 1 / -1; margin-top:20px;'>カードデータの読み込みに失敗しました。<br>${jsonFile} の配置を確認してください。</h3>`;
+          console.error("JSON読み込みエラー:", err);
+          document.getElementById("card-grid").innerHTML = `<h3 style='color:red; grid-column: 1 / -1; margin-top:20px;'>カードデータの読み込みに失敗しました。<br>ファイル名: <b>${jsonFile}</b> の配置を確認してください。</h3>`;
         });
     }
 
     function changeVersion() {
       if (timerInterval) clearInterval(timerInterval);
+      isTimerStarted = false;
       loadData();
     }
 
@@ -259,9 +259,8 @@
       saveGameState();
     }
 
-    function changeIllustMode() {
-      const select = document.getElementById("illust-mode-select");
-      currentIllustMode = select.value;
+    function changeIllustMode(mode) {
+      currentIllustMode = mode;
       const folder = getCurrentFolder();
 
       cardsData.forEach((card, idx) => {
@@ -281,19 +280,14 @@
     function applyIllustModeToElement(imgEl, mode, folder) {
       imgEl.className = "";
       if (mode === "hidden") {
-        // 非表示時は裏面画像を設定
         imgEl.src = `images/${folder}/card_back.jpg`;
         imgEl.classList.add("mode-hidden");
       } else {
-        // 一部表示・全部表示時は本画像を設定してCSSで加工
-        imgEl.src = `images/${folder}/card_back.jpg`; // 一瞬のチラ見え防止の初期値として設定
-        // 遅延させて本画像を読み込み
-        setTimeout(() => {
-          const cardObj = cardsData[parseInt(imgEl.id.split('-')[1])];
-          if (cardObj && !cardObj.isCleared) {
-            imgEl.src = `images/${cardObj.imgPath}`;
-          }
-        }, 10);
+        const cardIdx = parseInt(imgEl.id.split('-')[1]);
+        const cardObj = cardsData[cardIdx];
+        if (cardObj && !cardObj.isCleared) {
+          imgEl.src = `images/${cardObj.imgPath}`;
+        }
 
         if (mode === "partial") {
           imgEl.classList.add("mode-partial");
@@ -334,7 +328,6 @@
       document.getElementById("total-count").innerText = cardsData.length;
 
       const folder = getCurrentFolder();
-      const mode = document.getElementById("illust-mode-select").value;
 
       cardsData.forEach((card, idx) => {
         const cardEl = document.createElement("div");
@@ -367,7 +360,7 @@
             </div>
           `;
           const imgEl = document.getElementById(`img-${idx}`);
-          applyIllustModeToElement(imgEl, mode, folder);
+          applyIllustModeToElement(imgEl, currentIllustMode, folder);
         }
         grid.appendChild(cardEl);
       });
@@ -384,7 +377,6 @@
       updateLivesDisplay();
     }
 
-    // ローカルストレージへの一時保存
     function saveGameState() {
       if (cardsData.length === 0) return;
       const state = {
@@ -397,12 +389,11 @@
         isTimerStarted,
         isGameOver,
         livesSelectVal: document.getElementById("lives-select").value,
-        illustModeVal: document.getElementById("illust-mode-select").value
+        illustModeVal: currentIllustMode
       };
       localStorage.setItem(getStorageKey(), JSON.stringify(state));
     }
 
-    // ローカルストレージからの復元
     function restoreGameState() {
       const saved = localStorage.getItem(getStorageKey());
       if (!saved) return;
@@ -420,8 +411,9 @@
           document.getElementById("lives-select").value = state.livesSelectVal;
         }
         if (state.illustModeVal) {
-          document.getElementById("illust-mode-select").value = state.illustModeVal;
           currentIllustMode = state.illustModeVal;
+          const radio = document.querySelector(`input[name="illust-mode"][value="${currentIllustMode}"]`);
+          if (radio) radio.checked = true;
         }
 
         if (state.clearedIndices && Array.isArray(state.clearedIndices)) {
@@ -441,6 +433,10 @@
         localStorage.removeItem(getStorageKey());
         if (timerInterval) clearInterval(timerInterval);
         isTimerStarted = false;
+        correctCount = 0;
+        seconds = 0;
+        missCount = 0;
+        isGameOver = false;
         document.getElementById("version-select").disabled = false;
         document.getElementById("lives-select").disabled = false;
         loadData();
@@ -565,18 +561,4 @@
 
     function shareOnX(isClear, timeStr, seriesName) {
       const statusText = isClear ? `「${seriesName}」全カード完全クリア！🏆` : `「${seriesName}」結果: ${correctCount}/${cardsData.length}枚正解`;
-      const modeText = isNoLivesMode ? `(ミス数: ${missCount}回)` : `(残機: ${lives}/${initialLives})`;
-      const text = encodeURIComponent(
-        `【三国志大戦 言えるかな？】\n` +
-        `${statusText}\n` +
-        `⏱ タイム: ${timeStr} ${modeText}\n` +
-        `#三国志大戦 #三国志大戦言えるかな\n`
-      );
-      const url = encodeURIComponent(window.location.href);
-      window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, "_blank");
-    }
-
-    loadData();
-  </script>
-</body>
-</html>
+      const modeText = isNoLives
