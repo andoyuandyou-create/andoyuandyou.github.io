@@ -54,33 +54,37 @@
       position: relative;
     }
 
-    .card-img-wrapper img {
+    /* 1. 非表示 (裏面) または 正解クリア時 */
+    .card-container.mode-hide .card-img-wrapper img,
+    .card.cleared .card-img-wrapper img {
       width: 100%;
       height: 100%;
       display: block;
-    }
-
-    /* 1. 非表示 (裏面など) */
-    .card-container.mode-hide .card-img-wrapper img {
       object-fit: cover;
       object-position: center;
+      transform: none;
+      position: static;
     }
 
     /* 2. 一部表示: 画像サイズそのままで約500%(5倍)に拡大し、中央を表示 */
-    .card-container.mode-partial .card-img-wrapper img {
+    .card-container.mode-partial .card-img-wrapper img:not(.cleared-img) {
+      width: 100%;
+      height: 100%;
+      display: block;
       object-fit: cover;
       object-position: center;
       transform: scale(5);
     }
 
-    /* 3. 全部表示: 右上から 61×93 ピクセルになるようにトリミング（右上に寄せる） */
-    .card-container.mode-full .card-img-wrapper img {
+    /* 3. 全部表示: 画像を元のサイズ(77×110)のまま右上に配置し、枠(77×110)の右上から61×93の範囲以外をクリップ（トリミング） */
+    .card-container.mode-full .card-img-wrapper img:not(.cleared-img) {
       position: absolute;
       top: 0;
       right: 0;
-      width: 61px;
-      height: 93px;
-      object-fit: fill;
+      width: 77px;
+      height: 110px;
+      display: block;
+      clip-path: inset(0 0 17px 16px); /* 上:0, 右:0, 下:110-93=17px, 左:77-61=16px をカット */
     }
 
     /* ステータス表示・非表示の切り替えクラス */
@@ -106,7 +110,7 @@
       <div class="control-group">
         シリーズ: <select id="version-select" onchange="changeVersion()">
           <option value="1">三国志大戦</option>
-          <!--<option value="2">三国志大戦2</option>-->
+          <option value="2">三国志大戦2</option>
         </select>
       </div>
 
@@ -453,12 +457,12 @@
 
         cardEl.innerHTML = `
           <div class="card-img-wrapper">
-            <img src="${imgSrc}" id="img-${idx}" alt="カード画像">
+            <img src="${imgSrc}" id="img-${idx}" class="${card.isCleared ? 'cleared-img' : ''}" alt="カード画像">
           </div>
           <div class="card-name" id="name-${idx}">${card.isCleared ? card.bushoName : "???"}</div>
           <div class="card-info">
             No.${card.displayNo} [${card.rarity}]<br>
-            武${card.power}/知${card.int}/ｺｽﾄ${card.cost}<br>
+            武${card.power}/知${card.int}/ｺｽト${card.cost}<br>
             【${card.strategy}】
           </div>
         `;
@@ -493,7 +497,10 @@
           const cardBox = document.getElementById(`card-${targetIndex}`);
           cardBox.classList.add("cleared");
           
-          document.getElementById(`img-${targetIndex}`).src = `images/${targetCard.imgPath}`;
+          const targetImg = document.getElementById(`img-${targetIndex}`);
+          targetImg.src = `images/${targetCard.imgPath}`;
+          targetImg.classList.add("cleared-img");
+
           document.getElementById(`name-${targetIndex}`).innerText = targetCard.bushoName;
           document.getElementById("score").innerText = correctCount;
           inputEl.value = "";
