@@ -16,6 +16,10 @@
     
     .shiki-icon { width: 16px; height: 16px; vertical-align: middle; margin: 0 1px; }
     
+    /* リセットボタンのスタイル */
+    .reset-btn { background: #d9534f; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
+    .reset-btn:hover { background: #c9302c; }
+
     /* PC表示：カード最大幅77pxに合わせ自動で最適列数で並ぶ */
     .card-container {
       display: grid;
@@ -41,7 +45,7 @@
     .card { background: #2b2b2b; border-radius: 4px; padding: 3px; text-align: center; border: 1px solid #444; overflow: hidden; box-sizing: border-box; }
     .card.cleared { background: #1e3a1e; border-color: #4CAF50; }
     
-    /* カード画像・イラスト表示エリアのデフォルト */
+    /* カード画像・イラスト表示エリア */
     .card-img-wrapper {
       width: 100%;
       aspect-ratio: 77/110;
@@ -62,12 +66,10 @@
     }
 
     /* イラスト表示モード別のスタイル */
-    /* 1. 非表示 (デフォルト): 裏面表示の時は裏面、正解したら通常の全体表示に戻る等の制御用 */
     .card img.mode-hidden {
-      object-fit: cover;
+      object-fit: cover; /* 裏面画像を表示するため通常フィット */
     }
 
-    /* 2. 一部表示: 画像サイズそのまま・600%拡大・中央 */
     .card img.mode-partial {
       max-width: none !important;
       max-height: none !important;
@@ -77,7 +79,6 @@
       transform-origin: center center;
     }
 
-    /* 3. 全部表示: 画像サイズそのまま・右上から61x93pxトリミング */
     .card img.mode-full {
       max-width: none !important;
       max-height: none !important;
@@ -123,10 +124,9 @@
         </select>
       </div>
 
-      <!-- イラスト表示モード選択を追加 -->
       <div class="control-group">
         イラスト: <select id="illust-mode-select" onchange="changeIllustMode()">
-          <option value="hidden" selected>非表示</option>
+          <option value="hidden" selected>非表示 (裏面)</option>
           <option value="partial">一部表示 (600%中央)</option>
           <option value="full">全部表示 (右上61x93)</option>
         </select>
@@ -136,6 +136,10 @@
         ステータス: 
         <label><input type="radio" name="status-toggle" value="show" onclick="toggleStatus(true)"> 表示</label>
         <label><input type="radio" name="status-toggle" value="hide" checked onclick="toggleStatus(false)"> 非表示</label>
+      </div>
+
+      <div class="control-group">
+        <button class="reset-btn" onclick="resetGamePrompt()">リセット</button>
       </div>
     </div>
 
@@ -164,19 +168,24 @@
     let timerInterval = null;
     let isTimerStarted = false;
     let isGameOver = false;
-    let currentIllustMode = "hidden"; // デフォルト「非表示」
+    let currentIllustMode = "hidden";
 
     function getCurrentFolder() {
       const ver = document.getElementById("version-select").value;
       return ver === "1" ? "sangokushitaisen1" : `sangokushitaisen${ver}`;
     }
 
-    // カタカナをひらがなに正規化するヘルパー関数
     function normalizeToHiragana(str) {
       if (!str) return "";
       return str.replace(/[\u30a1-\u30f6]/g, function(match) {
         return String.fromCharCode(match.charCodeAt(0) - 0x60);
       });
+    }
+
+    // ローカルストレージのキー（シリーズごとに分離）
+    function getStorageKey() {
+      const ver = document.getElementById("version-select").value;
+      return `sangoku_quiz_v${ver}`;
     }
 
     function loadData() {
@@ -199,10 +208,7 @@
 
             const bushoName = String(item["武将名"] || "").trim();
             const yomi = String(item["ヨミ"] || "").trim();
-            
-            // 読みの前半部（半角スペースより前）を取得
             const yomiFirstWord = yomi.split(" ")[0] || "";
-            
             const imgFileName = `${folder}/${formattedNo}_${yomiFirstWord}.jpg`;
 
             return {
@@ -211,7 +217,7 @@
               rarity: item["レアリティ"] || "",
               bushoName: bushoName,
               yomi: yomi,
-              yomiFirst: yomiFirstWord, // 判定用
+              yomiFirst: yomiFirstWord,
               power: item["武力"] || "",
               int: item["知力"] || "",
               cost: item["武将コスト"] || "",
@@ -221,6 +227,8 @@
             };
           });
 
+          // 保存されたプレイステータスの復元を試みる
+          restoreGameState();
           initGame();
         })
         .catch(err => {
@@ -230,7 +238,7 @@
     }
 
     function changeVersion() {
-      resetGameStats();
+      if (timerInterval) clearInterval(timerInterval);
       loadData();
     }
 
@@ -243,40 +251,55 @@
       } else {
         isNoLivesMode = false;
         initialLives = parseInt(val, 10);
-        lives = initialLives;
+        if (lives > initialLives || isNaN(lives)) lives = initialLives;
         document.getElementById("lives-display-container").style.display = "inline";
         document.getElementById("miss-display-container").style.display = "none";
         updateLivesDisplay();
       }
+      saveGameState();
     }
 
-    // イラスト表示モードの変更時、全カードの表示スタイルを更新する
     function changeIllustMode() {
       const select = document.getElementById("illust-mode-select");
       currentIllustMode = select.value;
+      const folder = getCurrentFolder();
 
       cardsData.forEach((card, idx) => {
         const imgEl = document.getElementById(`img-${idx}`);
         if (!imgEl) return;
 
         if (card.isCleared) {
-          // 正解済みのカードは常にクリア後の通常全体表示
           imgEl.className = "";
+          imgEl.src = `images/${card.imgPath}`;
         } else {
-          // 未クリアのカードに対してモードを適用
-          applyIllustModeToElement(imgEl, currentIllustMode);
+          applyIllustModeToElement(imgEl, currentIllustMode, folder);
         }
       });
+      saveGameState();
     }
 
-    function applyIllustModeToElement(imgEl, mode) {
+    function applyIllustModeToElement(imgEl, mode, folder) {
       imgEl.className = "";
       if (mode === "hidden") {
+        // 非表示時は裏面画像を設定
+        imgEl.src = `images/${folder}/card_back.jpg`;
         imgEl.classList.add("mode-hidden");
-      } else if (mode === "partial") {
-        imgEl.classList.add("mode-partial");
-      } else if (mode === "full") {
-        imgEl.classList.add("mode-full");
+      } else {
+        // 一部表示・全部表示時は本画像を設定してCSSで加工
+        imgEl.src = `images/${folder}/card_back.jpg`; // 一瞬のチラ見え防止の初期値として設定
+        // 遅延させて本画像を読み込み
+        setTimeout(() => {
+          const cardObj = cardsData[parseInt(imgEl.id.split('-')[1])];
+          if (cardObj && !cardObj.isCleared) {
+            imgEl.src = `images/${cardObj.imgPath}`;
+          }
+        }, 10);
+
+        if (mode === "partial") {
+          imgEl.classList.add("mode-partial");
+        } else if (mode === "full") {
+          imgEl.classList.add("mode-full");
+        }
       }
     }
 
@@ -287,27 +310,6 @@
       } else {
         grid.classList.add("hidden-status");
       }
-    }
-
-    function resetGameStats() {
-      correctCount = 0;
-      seconds = 0;
-      missCount = 0;
-      isGameOver = false;
-      isTimerStarted = false;
-      if (timerInterval) clearInterval(timerInterval);
-      
-      const inputEl = document.getElementById("name-input");
-      inputEl.disabled = false;
-      inputEl.value = "";
-      
-      document.getElementById("version-select").disabled = false;
-      document.getElementById("lives-select").disabled = false;
-
-      document.getElementById("score").innerText = "0";
-      document.getElementById("timer").innerText = "00:00";
-      document.getElementById("miss-count").innerText = "0";
-      changeLivesMode();
     }
 
     function startTimerIfNeeded() {
@@ -321,6 +323,7 @@
           const m = String(Math.floor(seconds / 60)).padStart(2, '0');
           const s = String(seconds % 60).padStart(2, '0');
           document.getElementById("timer").innerText = `${m}:${s}`;
+          saveGameState();
         }, 1000);
       }
     }
@@ -337,28 +340,111 @@
         const cardEl = document.createElement("div");
         cardEl.className = "card";
         cardEl.id = `card-${idx}`;
-        
-        // 未クリア時は、モード設定に応じて裏面（または該当加工画像）を表示、非表示なら card_back.jpg を使用することも可能
-        // ここでは「画像そのものを使用しつつCSSでトリミング・拡大する」仕様に合わせて実画像パスを設定
-        cardEl.innerHTML = `
-          <div class="card-img-wrapper">
-            <img src="images/${card.imgPath}" id="img-${idx}" alt="カードイラスト">
-          </div>
-          <div class="card-name" id="name-${idx}">???</div>
-          <div class="card-info">
-            No.${card.displayNo} [${card.rarity}]<br>
-            武${card.power}/知${card.int}/ｺｽﾄ${card.cost}<br>
-            【${card.strategy}】
-          </div>
-        `;
-        grid.appendChild(cardEl);
 
-        // 初期化時に各カードのイラスト表示モードを適用
-        const imgEl = document.getElementById(`img-${idx}`);
-        applyIllustModeToElement(imgEl, mode);
+        if (card.isCleared) {
+          cardEl.classList.add("cleared");
+          cardEl.innerHTML = `
+            <div class="card-img-wrapper">
+              <img src="images/${card.imgPath}" id="img-${idx}" alt="カードイラスト">
+            </div>
+            <div class="card-name" id="name-${idx}">${card.bushoName}</div>
+            <div class="card-info">
+              No.${card.displayNo} [${card.rarity}]<br>
+              武${card.power}/知${card.int}/ｺｽﾄ${card.cost}<br>
+              【${card.strategy}】
+            </div>
+          `;
+        } else {
+          cardEl.innerHTML = `
+            <div class="card-img-wrapper">
+              <img src="" id="img-${idx}" alt="カードイラスト">
+            </div>
+            <div class="card-name" id="name-${idx}">???</div>
+            <div class="card-info">
+              No.${card.displayNo} [${card.rarity}]<br>
+              武${card.power}/知${card.int}/ｺｽﾄ${card.cost}<br>
+              【${card.strategy}】
+            </div>
+          `;
+          const imgEl = document.getElementById(`img-${idx}`);
+          applyIllustModeToElement(imgEl, mode, folder);
+        }
+        grid.appendChild(cardEl);
       });
 
-      changeLivesMode();
+      document.getElementById("score").innerText = correctCount;
+      const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+      const s = String(seconds % 60).padStart(2, '0');
+      document.getElementById("timer").innerText = `${m}:${s}`;
+      document.getElementById("miss-count").innerText = missCount;
+
+      if (isTimerStarted && !isGameOver && seconds > 0) {
+        startTimerIfNeeded();
+      }
+      updateLivesDisplay();
+    }
+
+    // ローカルストレージへの一時保存
+    function saveGameState() {
+      if (cardsData.length === 0) return;
+      const state = {
+        clearedIndices: cardsData.map((c, idx) => c.isCleared ? idx : -1).filter(idx => idx !== -1),
+        correctCount,
+        seconds,
+        lives,
+        missCount,
+        isNoLivesMode,
+        isTimerStarted,
+        isGameOver,
+        livesSelectVal: document.getElementById("lives-select").value,
+        illustModeVal: document.getElementById("illust-mode-select").value
+      };
+      localStorage.setItem(getStorageKey(), JSON.stringify(state));
+    }
+
+    // ローカルストレージからの復元
+    function restoreGameState() {
+      const saved = localStorage.getItem(getStorageKey());
+      if (!saved) return;
+      try {
+        const state = JSON.parse(saved);
+        correctCount = state.correctCount || 0;
+        seconds = state.seconds || 0;
+        missCount = state.missCount || 0;
+        isNoLivesMode = state.isNoLivesMode || false;
+        lives = state.lives !== undefined ? state.lives : 12;
+        isTimerStarted = state.isTimerStarted || false;
+        isGameOver = state.isGameOver || false;
+
+        if (state.livesSelectVal) {
+          document.getElementById("lives-select").value = state.livesSelectVal;
+        }
+        if (state.illustModeVal) {
+          document.getElementById("illust-mode-select").value = state.illustModeVal;
+          currentIllustMode = state.illustModeVal;
+        }
+
+        if (state.clearedIndices && Array.isArray(state.clearedIndices)) {
+          state.clearedIndices.forEach(idx => {
+            if (cardsData[idx]) {
+              cardsData[idx].isCleared = true;
+            }
+          });
+        }
+      } catch (e) {
+        console.error("セーブデータの読み込みに失敗しました", e);
+      }
+    }
+
+    function resetGamePrompt() {
+      if (confirm("現在のプレイ状況をリセットして最初からやり直しますか？")) {
+        localStorage.removeItem(getStorageKey());
+        if (timerInterval) clearInterval(timerInterval);
+        isTimerStarted = false;
+        document.getElementById("version-select").disabled = false;
+        document.getElementById("lives-select").disabled = false;
+        loadData();
+      }
     }
 
     const inputEl = document.getElementById("name-input");
@@ -369,16 +455,13 @@
 
         startTimerIfNeeded();
 
-        // ユーザー入力をひらがなに正規化し、半角スペース前を取り出す
         const cleanUser = normalizeToHiragana(val.split(/[\s ]+/)[0]);
 
-        // 未クリアのカードの中で、読みの前半部（ひらがな・カタカナ両対応）が一致するものを探す
         const targetCard = cardsData
           .filter(c => {
             if (c.isCleared) return false;
             const targetYomiFirst = normalizeToHiragana(c.yomiFirst);
             const targetBusho = normalizeToHiragana(c.bushoName);
-            // 読みの前半部、または武者名そのものと一致するか
             return cleanUser === targetYomiFirst || cleanUser === targetBusho;
           })
           .sort((a, b) => parseInt(a.displayNo) - parseInt(b.displayNo))[0];
@@ -392,7 +475,6 @@
           const cardBox = document.getElementById(`card-${targetIndex}`);
           cardBox.classList.add("cleared");
           
-          // 正解したらイラストモードの制限を解除し、通常の全体表示にする
           const imgEl = document.getElementById(`img-${targetIndex}`);
           imgEl.className = ""; 
           imgEl.src = `images/${targetCard.imgPath}`;
@@ -400,6 +482,8 @@
           document.getElementById(`name-${targetIndex}`).innerText = targetCard.bushoName;
           document.getElementById("score").innerText = correctCount;
           inputEl.value = "";
+
+          saveGameState();
 
           if (correctCount === cardsData.length) {
             endGame(true);
@@ -420,6 +504,7 @@
               endGame(false);
             }
           }
+          saveGameState();
         }
       }
     });
@@ -457,6 +542,7 @@
       isGameOver = true;
       if (timerInterval) clearInterval(timerInterval);
       inputEl.disabled = true;
+      saveGameState();
 
       const seriesSelect = document.getElementById("version-select");
       const seriesName = seriesSelect.options[seriesSelect.selectedIndex].text;
