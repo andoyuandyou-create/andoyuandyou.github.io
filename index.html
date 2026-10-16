@@ -18,7 +18,7 @@
     
     .shiki-icon { width: 16px; height: 16px; vertical-align: middle; margin: 0 1px; }
     
-    /* PC表示：カード最大幅77pxに合わせ自動で最適列数で並ぶ */
+    /* 通常カードグリッド（縦長カード用） */
     .card-container {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(85px, 85px));
@@ -31,19 +31,27 @@
       margin-right: auto;
     }
 
-    /* スマホ（画面幅40px以下）の場合のみ：自動で画面内に横5枚固定で並べる */
-    @media (max-width: 40px) {
+    /* 軍師カード選択時（横長カード 108×77 に合わせたグリッド） */
+    .card-container.gunshi-mode {
+      grid-template-columns: repeat(auto-fill, minmax(116px, 116px));
+    }
+
+    /* スマホ（画面幅400px以下）の場合の自動調整 */
+    @media (max-width: 400px) {
       .card-container {
-        grid-template-columns: repeat(5, 1fr);
+        grid-template-columns: repeat(auto-fill, minmax(75px, 75px));
         gap: 3px;
         padding: 1px;
+      }
+      .card-container.gunshi-mode {
+        grid-template-columns: repeat(auto-fill, minmax(100%, 100%));
       }
     }
 
     .card { background: #2b2b2b; border-radius: 4px; padding: 3px; text-align: center; border: 1px solid #444; overflow: hidden; box-sizing: border-box; }
     .card.cleared { background: #1e3a1e; border-color: #4CAF50; }
     
-    /* カード内の画像コンテナ（サイズ固定: 77×108） */
+    /* 通常カードの画像コンテナ（サイズ固定: 77×108） */
     .card-img-wrapper {
       width: 77px;
       height: 108px;
@@ -54,11 +62,17 @@
       position: relative;
     }
 
+    /* 軍師カードの画像コンテナ（サイズ固定: 108×77、横向き） */
+    .card-container.gunshi-mode .card-img-wrapper {
+      width: 108px;
+      height: 77px;
+    }
+
     /* 1. 非表示 (裏面) または 正解クリア時 */
     .card-container.mode-hide .card-img-wrapper img,
     .card.cleared .card-img-wrapper img {
-      width: 77px;
-      height: 108px;
+      width: 100%;
+      height: 100%;
       display: block;
       object-fit: fill;
       object-position: center;
@@ -68,15 +82,15 @@
 
     /* 2. 一部表示: 画像サイズそのままで約500%(5倍)に拡大し、中央を表示 */
     .card-container.mode-partial .card-img-wrapper img:not(.cleared-img) {
-      width: 77px;
-      height: 108px;
+      width: 100%;
+      height: 100%;
       display: block;
       object-fit: cover;
       object-position: center;
       transform: scale(5);
     }
 
-    /* 3. 全部表示: 画像を元のサイズ(77×108)のまま右上に配置し、枠(77×108)の右上から61×93の範囲以外をクリップ */
+    /* 3. 全部表示 (通常 77×108 の場合): 右上から 61×93 を切り出し */
     .card-container.mode-full .card-img-wrapper img:not(.cleared-img) {
       position: absolute;
       top: 0;
@@ -86,6 +100,18 @@
       display: block;
       object-fit: fill;
       clip-path: inset(0 0 15px 16px);
+    }
+
+    /* 3. 全部表示 (軍師 108×77 横向きの場合): 縦横入れ替えたトリミング */
+    .card-container.gunshi-mode.mode-full .card-img-wrapper img:not(.cleared-img) {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 108px;
+      height: 77px;
+      display: block;
+      object-fit: fill;
+      clip-path: inset(0 0 16px 15px); /* 横向き用に調整 */
     }
 
     /* ステータス表示・非表示の切り替えクラス */
@@ -112,6 +138,8 @@
         シリーズ: <select id="version-select" onchange="changeVersion()">
           <option value="1">三国志大戦</option>
           <option value="2">三国志大戦2</option>
+          <option value="3">三国志大戦3</option>
+          <option value="3_gunshi">三国志大戦3 - 軍師</option>
         </select>
       </div>
 
@@ -184,9 +212,12 @@
       return s;
     }
 
+    // シリーズに応じたフォルダ名の自動取得
     function getCurrentFolder() {
       const ver = document.getElementById("version-select").value;
-      return ver === "1" ? "sangokushitaisen1" : `sangokushitaisen${ver}`;
+      if (ver === "1") return "sangokushitaisen1";
+      if (ver === "3_gunshi") return "sangokushitaisen3_gunshi";
+      return `sangokushitaisen${ver}`;
     }
 
     function getStorageKey() {
@@ -194,10 +225,28 @@
       return `sangokushi_game_v${ver}`;
     }
 
+    // 軍師モード判定
+    function isGunshiMode() {
+      return document.getElementById("version-select").value === "3_gunshi";
+    }
+
     function loadData() {
       const ver = document.getElementById("version-select").value;
-      const jsonFile = ver === "1" ? "sangokushi_cards.json" : `sangokushi_cards_v${ver}.json`;
+      // バージョンに応じたJSONファイル名
+      let jsonFile = "sangokushi_cards.json";
+      if (ver === "2") jsonFile = "sangokushi_cards_v2.json";
+      else if (ver === "3") jsonFile = "sangokushi_cards_v3.json";
+      else if (ver === "3_gunshi") jsonFile = "sangokushi_cards_v3_gunshi.json";
+
       const folder = getCurrentFolder();
+      const grid = document.getElementById("card-grid");
+
+      // レイアウトモードの切り替えクラス反映
+      if (isGunshiMode()) {
+        grid.classList.add("gunshi-mode");
+      } else {
+        grid.classList.remove("gunshi-mode");
+      }
 
       fetch(jsonFile)
         .then(res => {
@@ -222,6 +271,7 @@
               displayNo: rawNo,
               noPrefix: formattedNo,
               rarity: item["レアリティ"] || "",
+              attribute: item["属性"] || "", // 三国志大戦3用の属性
               bushoName: bushoName,
               yomi: yomi,
               yomiFirst: yomiFirstWord,
@@ -229,6 +279,8 @@
               int: item["知力"] || "",
               cost: item["武将コスト"] || item["コスト"] || "",
               strategy: item["計略名"] || "",
+              hiryaku: item["兵略"] || "", // 軍師用
+              jinryaku: item["陣略"] || "", // 軍師用
               imgPath: imgFileName,
               isCleared: false
             };
@@ -265,7 +317,9 @@
       } else {
         isNoLivesMode = false;
         initialLives = parseInt(val, 10);
-        lives = initialLives;
+        if (!isTimerStarted && !isGameOver) {
+          lives = initialLives;
+        }
         document.getElementById("lives-display-container").style.display = "inline";
         document.getElementById("miss-display-container").style.display = "none";
         updateLivesDisplay();
@@ -380,6 +434,11 @@
       isGameOver = false;
       isTimerStarted = false;
       if (timerInterval) clearInterval(timerInterval);
+      const val = document.getElementById("lives-select").value;
+      if (val !== "none") {
+        initialLives = parseInt(val, 10);
+        lives = initialLives;
+      }
       changeLivesMode();
     }
 
@@ -452,6 +511,7 @@
       const folder = getCurrentFolder();
       const currentModeEl = document.querySelector('input[name="display-mode"]:checked');
       const currentMode = currentModeEl ? currentModeEl.value : "hide";
+      const gunshi = isGunshiMode();
 
       cardsData.forEach((card, idx) => {
         const cardEl = document.createElement("div");
@@ -465,15 +525,30 @@
           imgSrc = `images/${card.imgPath}`;
         }
 
+        // カード情報の組み立て（軍師モードと通常モードで切り替え）
+        let infoHtml = "";
+        if (gunshi) {
+          infoHtml = `
+            No.${card.displayNo} [${card.rarity}]<br>
+            ${card.hiryaku} / ${card.jinryaku}
+          `;
+        } else {
+          // 属性があれば 【属性】 を先頭に付与
+          const attrPart = card.attribute ? `【${card.attribute}】` : "";
+          infoHtml = `
+            ${attrPart}No.${card.displayNo} [${card.rarity}]<br>
+            武${card.power}/知${card.int}/ｺｽﾄ${card.cost}<br>
+            【${card.strategy}】
+          `;
+        }
+
         cardEl.innerHTML = `
           <div class="card-img-wrapper">
             <img src="${imgSrc}" id="img-${idx}" class="${card.isCleared ? 'cleared-img' : ''}" alt="カード画像">
           </div>
           <div class="card-name" id="name-${idx}">${card.isCleared ? card.bushoName : "???"}</div>
           <div class="card-info">
-            No.${card.displayNo} [${card.rarity}]<br>
-            武${card.power}/知${card.int}/ｺｽﾄ${card.cost}<br>
-            【${card.strategy}】
+            ${infoHtml}
           </div>
         `;
         grid.appendChild(cardEl);
